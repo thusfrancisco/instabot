@@ -1,7 +1,27 @@
-from selenium import webdriver
 import time
+import re
+from playwright.sync_api import Page, expect
 
 
+def test_homepage_has_Playwright_in_title_and_get_started_link_linking_to_the_intro_page(page: Page):
+    # chromium.launch(headless=False, slow_mo=100)
+
+    page.goto("https://www.instagram.com/")
+
+    # Expect a title "to contain" a substring.
+    expect(page).to_have_title(re.compile("Instagram"))
+
+    # create a locator
+    get_started = page.locator("text=Get Started")
+
+    # Expect an attribute "to be strictly equal" to the value.
+    expect(get_started).to_have_attribute("href", "/docs/intro")
+
+    # Click the get started link.
+    get_started.click()
+
+    # Expects the URL to contain intro.
+    expect(page).to_have_url(re.compile(".*intro"))
 
 
 class BotInstagram():
@@ -38,19 +58,3 @@ class BotInstagram():
         textarea.send_keys(comentario)
         time.sleep(2)
         self.driver.find_element_by_xpath('//*[@id="react-root"]/section/main/div/div[1]/article/div/div[2]/div/div[2]/section[3]/div/form/button[2]').click()
-
-bot = BotInstagram()
-bot.entrar_link("https://www.instagram.com/")
-time.sleep(15)
-bot.entrar_link("https://www.instagram.com/")
-time.sleep(2)
-links_fotos = bot.pegar_link_das_fotos()
-print(links_fotos)
-
-for link_foto in links_fotos:
-    bot.entrar_link(link_foto)
-    time.sleep(3)
-    bot.dar_like()
-    time.sleep(3)
-    bot.comentar("Teste 123")
-    time.sleep(3)
