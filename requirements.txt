@@ -1,2 +1,3 @@
 pytest-playwright
 pytest-dotenv
+pandas==1.5.0

@@ -2,6 +2,8 @@ from playwright.sync_api import Page
 import time
 from random import randint
 import json
+import pandas as pd
+import requests
 
 
 def login_to_instagram(page, username, password) -> Page:
@@ -31,7 +33,7 @@ def login_to_instagram(page, username, password) -> Page:
     return page
 
 
-def get_value_from_cookies_by_key(page, key: str) -> str:
+def get_value_from_cookies_by_key(page: Page, key: str) -> str:
     cookies = page.context.cookies()
 
     """
@@ -49,7 +51,15 @@ def get_value_from_cookies_by_key(page, key: str) -> str:
     return cookies[i]['value']
 
 
-def get_following_users_next_page(page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
+def get_all_cookies(page: Page) -> dict:
+    cookies_list = page.context.cookies()
+
+    return {
+        cookie['name']: cookie['value'] for cookie in cookies_list
+    }
+
+
+def query_user_next_page(query_hash: str, page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
     """
     The graphql query is used to get a batch of users and related information.
     To prevent timeouts, the number of users collected per query is 24 ("first":"24").
@@ -67,7 +77,7 @@ def get_following_users_next_page(page: Page, ds_user_id: int, first: int = 24, 
     }
 
     params = {
-        'query_hash': '3dec7e2c57367ef3da3d987d89f9dbc8',
+        'query_hash': query_hash,
         'variables': json.dumps(variables)
     }
 
@@ -76,20 +86,62 @@ def get_following_users_next_page(page: Page, ds_user_id: int, first: int = 24, 
     return page.goto(query).json()
 
 
-def get_all_following_users(page: Page, ds_user_id: int):
+def query_following_next_page(page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
+    return query_user_next_page('3dec7e2c57367ef3da3d987d89f9dbc8', page, ds_user_id, first=first, end_of_page_cursor=end_of_page_cursor)
+
+
+def query_followers_next_page(page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
+    return query_user_next_page('c76146de99bb02f6415203be841dd25a', page, ds_user_id, first=first, end_of_page_cursor=end_of_page_cursor)
+
+
+def query_following_all_pages(page: Page, ds_user_id: int) -> list:
     there_is_one_more_page = True  # Initiate at True, which assumes there is a first page.
     end_of_page_cursor = None  # Initiate at None, because for the first page there is no end_of_page_cursor.
+    all_following_users = []
 
     while there_is_one_more_page:
         try:
-            next_batch_of_following_users = get_following_users_next_page(page, ds_user_id, end_of_page_cursor)
+            next_batch_of_following_users = query_following_next_page(page, ds_user_id, end_of_page_cursor=end_of_page_cursor)
         except Exception as e:
             raise e
 
-        there_is_one_more_page = json.loads(next_batch_of_following_users).data.user.edge_follow.page_info.has_next_page
+        there_is_one_more_page = next_batch_of_following_users['data']['user']['edge_follow']['page_info']['has_next_page']
+        end_of_page_cursor = next_batch_of_following_users['data']['user']['edge_follow']['page_info']['end_cursor']
         
-        all_following_users += next_batch_of_following_users
+        all_following_users.append(next_batch_of_following_users)
 
-        time.sleep(randint(10, 30))  # Uniformly distributed sleep time, in seconds.
+        time.sleep(randint(5, 10))  # Uniformly distributed sleep time, in seconds.
     
     return all_following_users
+
+
+def get_following_count(page: Page, ds_user_id: int) -> int:
+    first_page = query_following_next_page(page, ds_user_id, first=1)
+
+    return int(first_page['data']['user']['edge_follow']['count'])
+
+
+def get_all_following(page: Page, ds_user_id: int) -> pd.DataFrame:
+    all_pages = query_following_all_pages(page, ds_user_id)
+
+    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['user']['edge_follow']['edges']])
+
+
+def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: str, follow: bool = True) -> str:
+    request_headers = {
+        'accept': '*/*',
+        'accept-language': 'en-US;q=0.9,en;q=0.8',
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),
+        'x-asbd-id': request_variables['x-asbd-id'],
+        'x-ig-app-id': request_variables['x-ig-app-id'],
+        'x-ig-www-claim': request_variables['x-ig-www-claim'],
+        'x-instagram-ajax': request_variables['x-instagram-ajax'],
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    return requests.post(
+        f'https://i.instagram.com/api/v1/web/friendships/{target_user}/{"follow" if follow else "unfollow"}/',
+        headers=request_headers,
+        cookies=get_all_cookies(page)
+    ).json()
