@@ -5,7 +5,7 @@ import re
 import time
 import pandas as pd
 from instagram import login_to_instagram, get_value_from_cookies_by_key, get_all_cookies
-from instagram import query_following_next_page, query_following_all_pages, get_following_count, get_all_following
+from instagram import GRAPHQL_QUERY, query_graphql_next_page, get_following_count, get_follower_count, get_all_following, get_all_followers
 from instagram import follow_unfollow_via_api
 
 
@@ -75,31 +75,14 @@ def test_get_all_cookies(page: Page, username: str, password: str):
     assert cookies_dict.get("ds_user_id")
     
 
-def test_query_following_next_page(page: Page, username: str, password: str):
+def test_query_graphql_next_page(page: Page, username: str, password: str):
     page.goto("https://www.instagram.com/")
 
     page = login_to_instagram(page, username, password)
     
     current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
 
-    first_page_of_following_users = query_following_next_page(page, current_user_id, first=1)
-
-    following_count = first_page_of_following_users['data']['user']['edge_follow']['count']
-    assert following_count >= 0
-    
-    # If more than one user is being followed, there must be a second page, thus has_next_page must be True
-    if following_count > 1:
-        assert first_page_of_following_users['data']['user']['edge_follow']['page_info']['has_next_page']
-
-
-def test_query_following_all(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    first_page_of_following_users = query_following_all_pages(page, current_user_id, first=24)
+    first_page_of_following_users = query_graphql_next_page(GRAPHQL_QUERY['following'], page, current_user_id, first=1)
 
     following_count = first_page_of_following_users['data']['user']['edge_follow']['count']
     assert following_count >= 0
@@ -119,6 +102,16 @@ def test_get_following_count(page: Page, username: str, password: str):
     assert isinstance(get_following_count(page, current_user_id), int)
 
 
+def test_get_follower_count(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
+
+    assert isinstance(get_follower_count(page, current_user_id), int)
+
+
 def test_get_all_following(page: Page, username: str, password: str):
     page.goto("https://www.instagram.com/")
 
@@ -127,6 +120,29 @@ def test_get_all_following(page: Page, username: str, password: str):
     current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
 
     all_following_users = get_all_following(page, current_user_id)
+
+    assert isinstance(all_following_users, pd.DataFrame)
+    assert all_following_users.columns.to_list() == [
+        'id',
+        'username',
+        'full_name',
+        'profile_pic_url',
+        'is_private',
+        'is_verified',
+        'followed_by_viewer',
+        'follows_viewer',
+        'requested_by_viewer'
+    ]
+
+
+def test_get_all_followers(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
+
+    all_following_users = get_all_followers(page, current_user_id)
 
     assert isinstance(all_following_users, pd.DataFrame)
     assert all_following_users.columns.to_list() == [
@@ -156,3 +172,4 @@ def test_unfollow_user_via_api(page: Page, username: str, password: str, request
     page = login_to_instagram(page, username, password)
     
     assert follow_unfollow_via_api(page, request_vars, 232192182, follow=False)['status'] == 'ok'
+ 

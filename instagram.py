@@ -6,6 +6,12 @@ import pandas as pd
 import requests
 
 
+GRAPHQL_QUERY = {
+    'following': '3dec7e2c57367ef3da3d987d89f9dbc8',
+    'followers': 'c76146de99bb02f6415203be841dd25a'
+}
+
+
 def login_to_instagram(page, username, password) -> Page:
     """
     Answer the cookies dialog,
@@ -59,7 +65,7 @@ def get_all_cookies(page: Page) -> dict:
     }
 
 
-def query_user_next_page(query_hash: str, page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
+def query_graphql_next_page(query_hash: str, page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
     """
     The graphql query is used to get a batch of users and related information.
     To prevent timeouts, the number of users collected per query is 24 ("first":"24").
@@ -86,22 +92,14 @@ def query_user_next_page(query_hash: str, page: Page, ds_user_id: int, first: in
     return page.goto(query).json()
 
 
-def query_following_next_page(page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
-    return query_user_next_page('3dec7e2c57367ef3da3d987d89f9dbc8', page, ds_user_id, first=first, end_of_page_cursor=end_of_page_cursor)
-
-
-def query_followers_next_page(page: Page, ds_user_id: int, first: int = 24, end_of_page_cursor: str = None) -> str:
-    return query_user_next_page('c76146de99bb02f6415203be841dd25a', page, ds_user_id, first=first, end_of_page_cursor=end_of_page_cursor)
-
-
-def query_following_all_pages(page: Page, ds_user_id: int) -> list:
+def query_graphql_all_pages(page: Page, ds_user_id: int, query_type: str) -> list:
     there_is_one_more_page = True  # Initiate at True, which assumes there is a first page.
     end_of_page_cursor = None  # Initiate at None, because for the first page there is no end_of_page_cursor.
     all_following_users = []
 
     while there_is_one_more_page:
         try:
-            next_batch_of_following_users = query_following_next_page(page, ds_user_id, end_of_page_cursor=end_of_page_cursor)
+            next_batch_of_following_users = query_graphql_next_page(query_hash=GRAPHQL_QUERY[query_type], page=page, ds_user_id=ds_user_id, end_of_page_cursor=end_of_page_cursor)
         except Exception as e:
             raise e
 
@@ -116,13 +114,25 @@ def query_following_all_pages(page: Page, ds_user_id: int) -> list:
 
 
 def get_following_count(page: Page, ds_user_id: int) -> int:
-    first_page = query_following_next_page(page, ds_user_id, first=1)
+    first_page = query_graphql_next_page(GRAPHQL_QUERY['following'], page, ds_user_id, first=0)
+
+    return int(first_page['data']['user']['edge_follow']['count'])
+
+
+def get_follower_count(page: Page, ds_user_id: int) -> int:
+    first_page = query_graphql_next_page(GRAPHQL_QUERY['followers'], page, ds_user_id, first=0)
 
     return int(first_page['data']['user']['edge_follow']['count'])
 
 
 def get_all_following(page: Page, ds_user_id: int) -> pd.DataFrame:
-    all_pages = query_following_all_pages(page, ds_user_id)
+    all_pages = query_graphql_all_pages(page, ds_user_id, 'following')
+
+    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['user']['edge_follow']['edges']])
+
+
+def get_all_followers(page: Page, ds_user_id: int) -> pd.DataFrame:
+    all_pages = query_graphql_all_pages(page, ds_user_id, 'followers')
 
     return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['user']['edge_follow']['edges']])
 
@@ -132,7 +142,7 @@ def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: st
         'accept': '*/*',
         'accept-language': 'en-US;q=0.9,en;q=0.8',
         'content-type': 'application/x-www-form-urlencoded',
-        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),
+        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),  # Whereas the other request variables remain unchanged between sessions, the csrftoken must be updated.
         'x-asbd-id': request_variables['x-asbd-id'],
         'x-ig-app-id': request_variables['x-ig-app-id'],
         'x-ig-www-claim': request_variables['x-ig-www-claim'],
@@ -145,3 +155,8 @@ def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: st
         headers=request_headers,
         cookies=get_all_cookies(page)
     ).json()
+
+"""
+saber n0 followers
+calcular 
+"""
