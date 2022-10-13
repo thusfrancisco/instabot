@@ -9,12 +9,12 @@ def sleep_between_tests():
     time.sleep(20)
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def username() -> str:
     return os.environ.get("INSTA_USERNAME")
 
 
-@pytest.fixture()
+@pytest.fixture(scope="session")
 def password() -> str:
     return os.environ.get("INSTA_PASSWORD")
 
