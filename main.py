@@ -1,175 +1,84 @@
 import pytest
-import os
-from playwright.sync_api import Page, expect
-import re
+from playwright.sync_api import Page
 import time
-import pandas as pd
-from instagram import login_to_instagram, get_value_from_cookies_by_key, get_all_cookies
-from instagram import GRAPHQL_QUERY, query_graphql_next_page, get_following_count, get_follower_count, get_all_following, get_all_followers
+from random import randint
+from instagram import login_to_instagram, get_value_from_cookies_by_key
+from instagram import GRAPHQL_QUERY, get_following_count, get_follower_count, get_all_following, get_all_likers
 from instagram import follow_unfollow_via_api
+import requests
 
 
-@pytest.fixture(autouse=True)
-def sleep_between_tests():
-    yield
-    time.sleep(20)
+MAX_POTENCY_RATIO = 1
+"""
+potency_ratio with POSITIVE values can be used to route interactions to only potential (real) users WHOSE followers count is higher than following count (e.g., potency_ratio = 1.39) find desired potency_ratio with this formula: potency_ratio == followers count / following count (use desired counts)
+potency_ratio with NEGATIVE values can be used to route interactions to only massive followers WHOSE following count is higher than followers count (e.g., potency_ratio = -1.42) find desired potency_ratio with this formula: potency_ratio == following count / followers count (use desired counts)
+"""
+SURREALDB_HEADERS = {
+    'Accept': 'application/json, text/javascript, */*',
+    'NS': 'myapplication',
+    'DB': 'myapplication'    
+}
+"""
+docker run --rm -p 8000:8000 surrealdb/surrealdb:latest start --log debug --user root --pass root memory
+"""
 
 
 @pytest.fixture()
-def username() -> str:
-    return os.environ.get("INSTA_USERNAME")
+def target_post_shortcode() -> int:
+    return 22897081742
 
 
-@pytest.fixture()
-def password() -> str:
-    return os.environ.get("INSTA_PASSWORD")
-
-
-@pytest.fixture()
-def request_vars() -> str:
-    return {
-        'x-asbd-id': os.environ.get("x-asbd-id"),
-        'x-ig-app-id': os.environ.get("x-ig-app-id"),
-        'x-ig-www-claim': os.environ.get("x-ig-www-claim"),
-        'x-instagram-ajax': os.environ.get("x-instagram-ajax")
-    }
-
-
-def test_goto_instagram_homepage_and_check_title(page: Page):
-    page.goto("https://www.instagram.com/")
-
-    expect(page).to_have_title(re.compile("Instagram"))
-    
-
-def test_username_and_password_are_strings(username: str, password: str):
-    assert isinstance(username, str)
-    assert isinstance(password, str)
-
-
-def test_goto_instagram_page_and_login(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    expect(page.locator(f'div>a:text("{username}")')).to_be_visible()
-
-
-def test_get_current_user_id(page: Page, username: str, password: str):
+def test_main(page: Page, username: str, password: str, request_vars: dict, target_post_shortcode: str):
     page.goto("https://www.instagram.com/")
 
     page = login_to_instagram(page, username, password)
     
     current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
 
-    assert current_user_id.isnumeric()
-
-
-def test_get_all_cookies(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-
-    cookies_dict = get_all_cookies(page)
+    # Unfollow all nonfollowers
+    all_following = get_all_following(page, current_user_id)
+    print(all_following)
+    all_following['request_response'] = all_following.apply(
+        lambda x: follow_unfollow_via_api(page, request_vars, x['id'], follow=False)['status'] if not x['follows_viewer'] else 'IS_FOLLOWER', axis=1
+    )
     
-    assert isinstance(cookies_dict, dict)
-    assert cookies_dict.get("ds_user_id")
+    # Get all followers of target_post
+    all_likers_of_target_post = get_all_likers(page, target_post_shortcode)
+    print(all_likers_of_target_post)
+
+    """
+    Create function for determining whether or not to follow the target post's liker.
+    If eligible, follow the liker and write a record to the database.
+    """
+    def follow_liker_and_write_record(liker_id: int, full_name: str, maximum_potency_ratio: float, is_private: bool, is_verified: bool) -> dict:
+        following_count = get_following_count(page, liker_id)
+        follower_count = get_follower_count(page, liker_id)
+
+        if follower_count / following_count < maximum_potency_ratio & is_private:
+            QUERY_TO_INSERT_FOLLOW_RECORD = f"""
+            CREATE follow:{liker_id}
+                SET time = time::now(),
+                    full_name = '{full_name}',
+                    follower_count = '{follower_count}',
+                    following_count = '{following_count}',
+                    is_private = {is_private},
+                    is_verified = {is_verified};
+            """
+            response = requests.post('http://localhost:8000/sql', headers=SURREALDB_HEADERS, auth=('root', 'root'), data=QUERY_TO_INSERT_FOLLOW_RECORD).json()
+            print(response)
+            
+            time.sleep(randint(5, 10))
+
+            response = requests.post('http://localhost:8000/sql', headers=SURREALDB_HEADERS, auth=('root', 'root'), data='SELECT id FROM follow').json()
+            if liker_id in [item['id'] for item in response['result'].items()]:
+                print(f'{liker_id} (full_name={full_name}) was a previous follow.')
+                return 'PREVIOUS_FOLLOW'
+            else:
+                print(f'{liker_id} (full_name={full_name}) is a new follow.')
+                return follow_unfollow_via_api(page, request_vars, liker_id, follow=True)
     
+    all_likers_of_target_post['request_response'] = all_likers_of_target_post.apply(
+        lambda x: follow_liker_and_write_record(x['id'], x['full_name'], MAX_POTENCY_RATIO, x['is_private'], x['is_verified'])
+    )
 
-def test_query_graphql_next_page(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    first_page_of_following_users = query_graphql_next_page(GRAPHQL_QUERY['following'], page, current_user_id, first=1)
-
-    following_count = first_page_of_following_users['data']['user']['edge_follow']['count']
-    assert following_count >= 0
-    
-    # If more than one user is being followed, there must be a second page, thus has_next_page must be True
-    if following_count > 1:
-        assert first_page_of_following_users['data']['user']['edge_follow']['page_info']['has_next_page']
-
-
-def test_get_following_count(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    assert isinstance(get_following_count(page, current_user_id), int)
-
-
-def test_get_follower_count(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    assert isinstance(get_follower_count(page, current_user_id), int)
-
-
-def test_get_all_following(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    all_following_users = get_all_following(page, current_user_id)
-
-    assert isinstance(all_following_users, pd.DataFrame)
-    assert all_following_users.columns.to_list() == [
-        'id',
-        'username',
-        'full_name',
-        'profile_pic_url',
-        'is_private',
-        'is_verified',
-        'followed_by_viewer',
-        'follows_viewer',
-        'requested_by_viewer'
-    ]
-
-
-def test_get_all_followers(page: Page, username: str, password: str):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    current_user_id = get_value_from_cookies_by_key(page, key='ds_user_id')
-
-    all_following_users = get_all_followers(page, current_user_id)
-
-    assert isinstance(all_following_users, pd.DataFrame)
-    assert all_following_users.columns.to_list() == [
-        'id',
-        'username',
-        'full_name',
-        'profile_pic_url',
-        'is_private',
-        'is_verified',
-        'followed_by_viewer',
-        'follows_viewer',
-        'requested_by_viewer'
-    ]
-
-
-def test_follow_user_via_api(page: Page, username: str, password: str, request_vars: dict):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    assert follow_unfollow_via_api(page, request_vars, 232192182)['result'] == 'following'
-
-
-def test_unfollow_user_via_api(page: Page, username: str, password: str, request_vars: dict):
-    page.goto("https://www.instagram.com/")
-
-    page = login_to_instagram(page, username, password)
-    
-    assert follow_unfollow_via_api(page, request_vars, 232192182, follow=False)['status'] == 'ok'
- 
+    print(all_likers_of_target_post)
