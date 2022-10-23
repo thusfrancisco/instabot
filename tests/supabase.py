@@ -61,3 +61,19 @@ def test_insert_into_follows_record_without_time():
     assert "data" in response.json()
 
     supabase.table("follows").delete().eq("id", 0).execute()
+
+
+def test_insert_into_follows_record_without_fullname():
+    supabase = new_client()
+    response = supabase.table("follows").insert({
+        'id': 0,
+        'full_name': None,
+        'follower_count': 0,
+        'following_count': 0,
+        'is_private': True,
+        'is_verified': False
+    }).execute()
+
+    assert "data" in response.json()
+
+    supabase.table("follows").delete().eq("id", 0).execute()
