@@ -13,7 +13,7 @@ https://medium.com/codex/breaking-instagram-automating-page-growth-part-1-a487c4
 https://github.com/davidarroyo1234/InstagramUnfollowers/blob/master/src/main.js
 
 Useful link:
-https://www.instagram.com/graphql/query/?query_hash=c76146de99bb02f6415203be841dd25a&variables={"shortcode":"CjpZwDMqeCv","id":16693093562,"include_reel":true,"first":24}
+https://www.instagram.com/graphql/query/?query_hash=c76146de99bb02f6415203be841dd25a&variables={"shortcode":"","id":,"include_reel":true,"first":24}
 """
 
 
@@ -192,8 +192,3 @@ def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: st
         headers=request_headers,
         cookies=get_all_cookies(page)
     ).json()
-
-"""
-saber n0 followers
-calcular 
-"""
