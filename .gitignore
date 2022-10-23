@@ -2,5 +2,6 @@ venv/
 .env
 .pytest_cache/
 __pycache__/
+.vscode/
 following.csv
-likers.csv
+likers*.csv

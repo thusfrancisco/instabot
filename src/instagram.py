@@ -11,6 +11,9 @@ import requests
 Main References:
 https://medium.com/codex/breaking-instagram-automating-page-growth-part-1-a487c471db69
 https://github.com/davidarroyo1234/InstagramUnfollowers/blob/master/src/main.js
+
+Useful link:
+https://www.instagram.com/graphql/query/?query_hash=c76146de99bb02f6415203be841dd25a&variables={"shortcode":"CjpZwDMqeCv","id":16693093562,"include_reel":true,"first":24}
 """
 
 
@@ -22,7 +25,7 @@ GRAPHQL_QUERY = {
 
 GRAPHQL_KEYS = {
     'following': ['user', 'edge_follow'],
-    'followers': ['user', 'edge_follow'],
+    'followers': ['user', 'edge_followed_by'],
     'likers': ['shortcode_media', 'edge_liked_by']
 }
 
@@ -132,33 +135,43 @@ def query_graphql_all_pages(page: Page, query_type: str, ds_user_id: int = "", s
 
 
 def get_following_count(page: Page, ds_user_id: int) -> int:
-    first_page = query_graphql_next_page(GRAPHQL_QUERY['following'], page, ds_user_id, first=0)
+    query_type = 'following'
 
-    return int(first_page['data']['user']['edge_follow']['count'])
+    first_page = query_graphql_next_page(GRAPHQL_QUERY[query_type], page, ds_user_id, first=0)
+
+    return int(first_page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['count'])
 
 
 def get_follower_count(page: Page, ds_user_id: int) -> int:
-    first_page = query_graphql_next_page(GRAPHQL_QUERY['followers'], page, ds_user_id, first=0)
+    query_type = 'followers'
 
-    return int(first_page['data']['user']['edge_follow']['count'])
+    first_page = query_graphql_next_page(GRAPHQL_QUERY[query_type], page, ds_user_id, first=0)
+
+    return int(first_page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['count'])
 
 
 def get_all_following(page: Page, ds_user_id: int) -> pd.DataFrame:
-    all_pages = query_graphql_all_pages(page, ds_user_id, 'following')
+    query_type = 'following'
 
-    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['user']['edge_follow']['edges']])
+    all_pages = query_graphql_all_pages(page, query_type=query_type, ds_user_id=ds_user_id)
+
+    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['edges']])
 
 
 def get_all_followers(page: Page, ds_user_id: int) -> pd.DataFrame:
-    all_pages = query_graphql_all_pages(page, ds_user_id, 'followers')
+    query_type = 'followers'
 
-    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['user']['edge_follow']['edges']])
+    all_pages = query_graphql_all_pages(page, query_type=query_type, ds_user_id=ds_user_id)
+
+    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['edges']])
 
 
 def get_all_likers(page: Page, shortcode: str) -> pd.DataFrame:
-    all_pages = query_graphql_all_pages(page, shortcode=shortcode, query_type='likers')
+    query_type = 'likers'
+        
+    all_pages = query_graphql_all_pages(page, query_type=query_type, shortcode=shortcode)
 
-    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data']['shortcode_media']['edge_liked_by']['edges']])
+    return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['edges']])
 
 
 def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: str, follow: bool = True) -> str:
