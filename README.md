@@ -1,9 +1,11 @@
 # Instabot
 
-This is an open source project to automate certain tasks for Instagram.
-I do not advise its use, as it goes against Instagram's terms of service, and thus could potentially result in a ban.
+    ⚠ I do not advise the usage of the code in this repository, as it goes against Instagram's terms of service, and thus could potentially result in a ban.
 
-This project was created as a simple, straightforward implementation, using Playwright for Python.
+This is an open source project to automate certain tasks for Instagram. Though it can be forked and used as such, it cannot automate interactions, such as liking posts and writing comments.
+It can only manage relationships by automating the process of following and unfollowing users.
+
+This project was created as a simple, straightforward implementation, using Playwright for Python, in contrast to most projects which use elaborate implementations. This project uses a mix of the Instagram APIs (both the REST and GraphQL ones), as well as traditional scraping tools.
 
 ## Setup
 
@@ -22,6 +24,12 @@ The next step is to setup environment variables. The ones currently being used a
 - **Supabase credentials:**
     - SUPABASE_URL
     - SUPABASE_KEY
+- **Post from which to scrape the likers:**
+    - TARGET_POST_ID
+
+This project makes use of the ``pytest-dotenv`` module, which allows you to simply write all necessary environment variables to a ``.env`` file.
+
+To find the **TARGET_POST_ID**, open an Instagram session, select the likes of the post whose likers you want to follow and see what is the shortcode of the response of the last GraphQL query executed by the client. ``shortcode`` is the post ID you're looking for.
 
 Once these steps have been completed, you can execute any of the functions in the ``main.py`` file by using the ``pytest`` command:
 

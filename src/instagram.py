@@ -11,9 +11,6 @@ import requests
 Main References:
 https://medium.com/codex/breaking-instagram-automating-page-growth-part-1-a487c471db69
 https://github.com/davidarroyo1234/InstagramUnfollowers/blob/master/src/main.js
-
-Useful link:
-https://www.instagram.com/graphql/query/?query_hash=c76146de99bb02f6415203be841dd25a&variables={"shortcode":"","id":,"include_reel":true,"first":24}
 """
 
 
