@@ -1,6 +1,6 @@
 # Instabot
 
-    ⚠ I do not advise the usage of the code in this repository, as it goes against Instagram's terms of service, and thus could potentially result in a ban.
+    ⚠ Disclaimer: For educational purposes only! I do not advise the usage of the code in this repository, as it goes against Instagram's terms of service, and thus could potentially result in a ban.
 
 This is an open source project to automate certain tasks for Instagram. Though it can be forked and used as such, it cannot automate interactions, such as liking posts and writing comments.
 It can only manage relationships by automating the process of following and unfollowing users.

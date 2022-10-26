@@ -23,6 +23,13 @@ SELECT id FROM follow
 """
 
 # print(requests.post('http://localhost:8000/sql', headers=SURREALDB_HEADERS, auth=('root', 'root'), data=QUERY_TO_INSERT_FOLLOW_RECORD).json())
+"""
+docker run --rm -p 8000:8000 surrealdb/surrealdb:latest start --log debug --user root --pass root memory
+"""
+"""
+docker run --name instagres -e POSTGRES_PASSWORD=XkPgRFJdo4A2rK5Y -e POSTGRES_USER=sa -p 5432:5432 -v /data:/var/lib/postgresql/data postgres
+docker run --name pgadmin -p 8000:8000 -e 'PGADMIN_DEFAULT_EMAIL=franciscoabsampaio@protonmail.com' -e 'PGADMIN_DEFAULT_PASSWORD=rr3FJso6XFgzQdNcxjKi'-d dpage/pgadmin4
+"""
 
 def test_select_all_previous_follows():
     supabase = new_client()

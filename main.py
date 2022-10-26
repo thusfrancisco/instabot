@@ -15,23 +15,11 @@ MAX_POTENCY_RATIO = 1
 potency_ratio with POSITIVE values can be used to route interactions to only potential (real) users WHOSE followers count is higher than following count (e.g., potency_ratio = 1.39) find desired potency_ratio with this formula: potency_ratio == followers count / following count (use desired counts)
 potency_ratio with NEGATIVE values can be used to route interactions to only massive followers WHOSE following count is higher than followers count (e.g., potency_ratio = -1.42) find desired potency_ratio with this formula: potency_ratio == following count / followers count (use desired counts)
 """
-"""
-docker run --rm -p 8000:8000 surrealdb/surrealdb:latest start --log debug --user root --pass root memory
-"""
-"""
-docker run --name instagres -e POSTGRES_PASSWORD=XkPgRFJdo4A2rK5Y -e POSTGRES_USER=sa -p 5432:5432 -v /data:/var/lib/postgresql/data postgres
-docker run --name pgadmin -p 8000:8000 -e 'PGADMIN_DEFAULT_EMAIL=franciscoabsampaio@protonmail.com' -e 'PGADMIN_DEFAULT_PASSWORD=rr3FJso6XFgzQdNcxjKi'-d dpage/pgadmin4
-"""
 
 
 @pytest.fixture()
 def target_post_shortcode() -> str:
-    return 'CjqvpJSNy9x'
-
-
-@pytest.fixture()
-def supabase_api_key() -> str:
-    return os.environ.get("SUPABASE_API_KEY")
+    return os.environ.get('TARGET_POST_ID')
 
 
 @pytest.fixture()
@@ -60,6 +48,7 @@ def test_unfollow_nonfollowers(session: Page, request_vars: dict):
 
 
 def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode: str):
+    print(f"Going to follow all likers of post with ID: {target_post_shortcode}")
     
     current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
 
@@ -86,11 +75,11 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
                 
         time.sleep(randint(3, 8))
 
-        if follower_count / following_count < maximum_potency_ratio & is_private:
+        if follower_count / following_count < maximum_potency_ratio:
             supabase = new_client()
             previous_follows = supabase.table("follows").select("id").execute().data
 
-            if liker_id in pd.DataFrame(previous_follows).values:
+            if liker_id in pd.DataFrame(previous_follows).tolist():
                 print(f'{liker_id} (full_name={full_name}) was a previous follow.')
                 return 'PREVIOUS_FOLLOW'
             else:
