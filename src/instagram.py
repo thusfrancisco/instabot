@@ -171,7 +171,7 @@ def get_all_likers(page: Page, shortcode: str) -> pd.DataFrame:
     return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['edges']])
 
 
-def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: str, follow: bool = True) -> str:
+def follow_unfollow_via_api(page: Page, request_variables: dict, target_user_id: int, follow: bool = True) -> str:
     request_headers = {
         'accept': '*/*',
         'accept-language': 'en-US;q=0.9,en;q=0.8',
@@ -184,8 +184,14 @@ def follow_unfollow_via_api(page: Page, request_variables: dict, target_user: st
         'x-requested-with': 'XMLHttpRequest'
     }
     
-    return requests.post(
-        f'https://i.instagram.com/api/v1/web/friendships/{target_user}/{"follow" if follow else "unfollow"}/',
+    response = requests.post(
+        f'https://i.instagram.com/api/v1/web/friendships/{str(target_user_id)}/{"follow" if follow else "unfollow"}/',
         headers=request_headers,
         cookies=get_all_cookies(page)
-    ).json()
+    )
+    print(f"Response {response} for user ID {str(target_user_id)}")
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return response.status_code

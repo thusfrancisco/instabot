@@ -1,4 +1,4 @@
-from src.supabase import new_client
+from src.supabase import new_client, n_days_ago_datetime_as_str
 import time
 
 
@@ -84,3 +84,11 @@ def test_insert_into_follows_record_without_fullname():
     assert "data" in response.json()
 
     supabase.table("follows").delete().eq("id", 0).execute()
+
+
+def test_select_follows_older_than():
+    supabase = new_client()
+
+    response = supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=7)).execute()
+    
+    assert "data" in response.json()

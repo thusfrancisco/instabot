@@ -142,5 +142,5 @@ def test_unfollow_user_via_api(page: Page, username: str, password: str, request
 
     page = login_to_instagram(page, username, password)
     
-    assert follow_unfollow_via_api(page, request_vars, 232192182, follow=False)['status'] == 'ok'
+    assert follow_unfollow_via_api(page, request_vars, 232192182, follow=False)['status_code'] == 200
  
