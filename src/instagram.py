@@ -131,20 +131,25 @@ def query_graphql_all_pages(page: Page, query_type: str, ds_user_id: int = "", s
     return all_following_users
 
 
-def get_following_count(page: Page, ds_user_id: int) -> int:
-    query_type = 'following'
-
-    first_page = query_graphql_next_page(GRAPHQL_QUERY[query_type], page, ds_user_id, first=0)
-
+def get_following_or_follower_count(page: Page, ds_user_id: int, query_type: str) -> int:
+    """
+    If the query, for some reason, fails with JSONDecodeError, it is likely that the JSON object does not contain a body as expected.
+    The most sensible action is to assume that there are no following/followers.
+    """
+    try:
+        first_page = query_graphql_next_page(GRAPHQL_QUERY[query_type], page, ds_user_id, first=0)
+    except json.decoder.JSONDecodeError:
+        return 0
+    
     return int(first_page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['count'])
+
+
+def get_following_count(page: Page, ds_user_id: int) -> int:
+    return get_following_or_follower_count(page=page, ds_user_id=ds_user_id, query_type='following')
 
 
 def get_follower_count(page: Page, ds_user_id: int) -> int:
-    query_type = 'followers'
-
-    first_page = query_graphql_next_page(GRAPHQL_QUERY[query_type], page, ds_user_id, first=0)
-
-    return int(first_page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['count'])
+    return get_following_or_follower_count(page=page, ds_user_id=ds_user_id, query_type='followers')
 
 
 def get_all_following(page: Page, ds_user_id: int) -> pd.DataFrame:
