@@ -8,8 +8,8 @@ from src.instagram import follow_unfollow_via_api
 import pandas as pd
 import os
 from src.supabase import new_client, n_days_ago_datetime_as_str
+from supabase import Client
 from postgrest.exceptions import APIError
-import sys
 import numpy as np
 
 
@@ -38,32 +38,38 @@ def test_unfollow_nonfollowers(session: Page, request_vars: dict):
 
     # Get all following
     if os.path.isfile('following.csv'):
-        all_following = pd.read_csv('following.csv')
+        following = pd.read_csv('following.csv')
     else:
-        all_following = get_all_following(session, current_user_id)
+        following = get_all_following(session, current_user_id)
         print('Saving all following to csv...')
-        all_following.to_csv('following.csv', index=False)
+        following.to_csv('following.csv', index=False)
     
     # Filter out followers
-    nonfollowers = all_following.loc[~all_following['follows_viewer']]
+    nonfollowers = following.loc[~following['follows_viewer']]
     nonfollowers.to_csv('nonfollowers.csv', index=False)
 
     # Get previous_follows who were followed at least one week ago
     supabase = new_client()
-    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=7)).execute().data)    
+    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=7)).limit(10000).execute().data)
+    follows_from_at_least_one_week_ago.to_csv('follows_from_at_least_one_week_ago.csv', index=False)  
 
     # Cross nonfollowers with previous_follows from at least one week ago, and remove exceptions (present in the exceptions list)
     list_unfollow_exceptions = [
-        55874960373  # TakesTwoDuo
+        55874960373,  # TakesTwoDuo
+        2910299261,  # nome.proprio
+        45646591947  # uterus.of.lilith
     ]
     users_to_unfollow = nonfollowers.loc[
         (nonfollowers['id'].isin(follows_from_at_least_one_week_ago['id'])) & (~nonfollowers['id'].isin(list_unfollow_exceptions))
     ]
+    users_to_unfollow.to_csv('users_to_unfollow.csv', index=False)
 
+    # Restrict maximum number of unfollows to prevent detection
+    users_to_unfollow = users_to_unfollow.head(15)
     print(f"A total of {len(users_to_unfollow)} users will be unfollowed.")
     
     def sleep_then_unfollow(session: Page, request_vars: dict, target_user_id: int) -> str:
-        time.sleep(randint(3, 8))
+        time.sleep(randint(20, 30))
         
         return follow_unfollow_via_api(session, request_vars, target_user_id, follow=False)
 
@@ -71,7 +77,10 @@ def test_unfollow_nonfollowers(session: Page, request_vars: dict):
     users_to_unfollow['request_response'] = users_to_unfollow.apply(
         lambda x: sleep_then_unfollow(session, request_vars, x['id']), axis=1
     )
-    users_to_unfollow.to_csv('nonfollowers_from_at_east_one_week_ago.csv', index=False)
+
+    # Update following csv
+    new_following = following.loc[(~following['id'].isin(users_to_unfollow['id']))]
+    new_following.to_csv('following.csv', index=False)
 
 
 def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode: str):
@@ -93,30 +102,28 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
     Create function for determining whether or not to follow the target post's liker.
     If eligible, follow the liker and write a record to the database.
     """
-    def follow_liker_and_write_record(liker_id: int, full_name: str, maximum_potency_ratio: float, is_private: bool, is_verified: bool) -> dict:
+    def follow_liker_and_write_record(liker_id: int, full_name: str, maximum_potency_ratio: float, is_private: bool, is_verified: bool, previous_follows_ids: pd.Series, supabase_client: Client) -> dict:
+        time.sleep(randint(10, 15))
+
         following_count = get_following_count(session, liker_id)
         
-        time.sleep(randint(3, 8))
+        time.sleep(randint(10, 15))
 
         follower_count = get_follower_count(session, liker_id)
-                
-        time.sleep(randint(3, 8))
-
+        
         """
         1 is summed to the following_count to prevent Divison by Zero.
         """
         if follower_count / (following_count + 1) < maximum_potency_ratio:
-            supabase = new_client()
-            previous_follows = supabase.table("follows").select("id").execute().data
 
-            if pd.Series(previous_follows).isin([liker_id]):
+            if previous_follows_ids.isin([liker_id]).any():
                 print(f'{liker_id} (full_name={full_name}) was a previous follow.')
                 return 'PREVIOUS_FOLLOW'
             else:
                 print(f'{liker_id} (full_name={full_name}) is a new follow.')
                 
                 try:
-                    response = supabase.table("follows").insert({
+                    response = supabase_client.table("follows").insert({
                         'id': liker_id,
                         'full_name': full_name,
                         'follower_count': follower_count,
@@ -125,21 +132,27 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
                         'is_verified': is_verified
                     }).execute()
                 except APIError:
-                    print(pd.Series(previous_follows).isin([liker_id]))
+                    print(previous_follows_ids.isin([liker_id]).any())
+                
+                time.sleep(randint(10, 15))
                 return follow_unfollow_via_api(session, request_vars, liker_id, follow=True)
 
     # Only follow private accounts
-    all_likers_of_target_post = all_likers_of_target_post.loc[all_likers_of_target_post['is_private'] == True]
-    print(f"There's {len(all_likers_of_target_post)} private accounts.")
+    private_likers_of_target_post = all_likers_of_target_post.loc[all_likers_of_target_post['is_private'] == False]
+    print(f"There's {len(private_likers_of_target_post)} public accounts.")
 
-    all_likers_of_target_post['request_response'] = all_likers_of_target_post.apply(
+    # Create new supabase client and select all previous follows' IDs
+    supabase = new_client()
+    previous_follows = pd.Series(supabase.table("follows").select("id").limit(10000).execute().data)
+
+    private_likers_of_target_post['request_response'] = private_likers_of_target_post.apply(
         lambda x: follow_liker_and_write_record(
-            x['id'], x['full_name'], MAX_POTENCY_RATIO, x['is_private'], x['is_verified']
+            x['id'], x['full_name'], MAX_POTENCY_RATIO, x['is_private'], x['is_verified'], previous_follows, supabase
         ) if not x['followed_by_viewer'] else 'ALREADY_FOLLOWED',
         axis=1
     )
 
-    all_likers_of_target_post.to_csv(likers_filename, index=False)
+    private_likers_of_target_post.to_csv(f"public_{likers_filename}", index=False)
 
 
 def test_update_followers(session: Page):
