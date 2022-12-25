@@ -1,9 +1,11 @@
 from playwright.sync_api import Page, expect
 import re
 import pandas as pd
-from instagram import login_to_instagram, get_value_from_cookies_by_key, get_all_cookies
-from instagram import GRAPHQL_QUERY, query_graphql_next_page, get_following_count, get_follower_count, get_all_following, get_all_followers
-from instagram import follow_unfollow_via_api
+from src.instagram import login_to_instagram, create_conversation_via_ui, paste_from_clipboard_to_textarea_via_ui, write_message_to_textarea_via_ui, send_message_via_ui
+from src.instagram import get_value_from_cookies_by_key, get_all_cookies
+from src.instagram import GRAPHQL_QUERY, query_graphql_next_page, get_following_count, get_follower_count, get_all_following, get_all_followers
+from src.instagram import follow_unfollow_via_api, create_conversation_via_api
+import time
 
 
 def test_goto_instagram_homepage_and_check_title(page: Page):
@@ -144,3 +146,68 @@ def test_unfollow_user_via_api(page: Page, username: str, password: str, request
     
     assert follow_unfollow_via_api(page, request_vars, 232192182, follow=False)['status_code'] == 200
  
+
+def test_create_conversation_via_api(page: Page, username: str, password: str, request_vars: dict):
+    """
+    NOT WORKING!
+    """
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    page.goto("https://www.instagram.com/direct/inbox/")
+    
+    assert isinstance(create_conversation_via_api(page, request_vars, ['50791316724']), int)  # TODO: change to NOT true
+    time.sleep(10)
+    assert True
+
+
+def test_create_conversation_via_ui(page: Page, username: str, password: str):
+    """
+    If there's at least 2 counts of the profile picture, and the recipient is not the same as the sender,
+    then if the page is https://www.instagram.com/direct/inbox/ a conversation with the recipient must exist and be open.
+    """
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    page.goto("https://www.instagram.com/direct/inbox/")
+
+    recipient_username = 'anna_2lucy'
+
+    page = create_conversation_via_ui(page, recipient_username)
+
+    expect(page.locator(f'img[alt="{recipient_username}\'s profile picture"]')).to_have_count(2)
+
+
+def test_paste_from_clipboard_and_send_message_via_ui(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    page.goto("https://www.instagram.com/direct/inbox/")
+
+    recipient_username = 'luis03sampaio'
+
+    page = create_conversation_via_ui(page, recipient_username)
+
+    page = paste_from_clipboard_to_textarea_via_ui(page)
+
+    page = send_message_via_ui(page)
+
+
+def test_write_message_and_send_message_via_ui(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+    
+    page.goto("https://www.instagram.com/direct/inbox/")
+
+    recipient_username = 'luis03sampaio'
+
+    page = create_conversation_via_ui(page, recipient_username)
+
+    page = write_message_to_textarea_via_ui(page, message_to_send="Hello, world!")
+
+    page = send_message_via_ui(page)
+

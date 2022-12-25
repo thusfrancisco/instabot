@@ -5,6 +5,7 @@ from random import randint
 from src.instagram import get_all_followers, login_to_instagram, get_value_from_cookies_by_key
 from src.instagram import get_following_count, get_follower_count, get_all_following, get_all_likers
 from src.instagram import follow_unfollow_via_api
+from src.instagram import create_conversation_via_ui, paste_from_clipboard_to_textarea_via_ui, write_message_to_textarea_via_ui, send_message_via_ui
 import pandas as pd
 import os
 from src.supabase import new_client, n_days_ago_datetime_as_str
@@ -189,3 +190,34 @@ def test_update_followers(session: Page):
                     'is_verified': is_verified
                 }).execute()
     current_followers.to_csv('followers.csv', index=False)
+
+
+def test_update_followers_to_csv(session: Page):
+    current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
+
+    # Get all followers
+    followers = get_all_followers(session, current_user_id)
+    followers.to_csv('followers.csv', index=False)
+
+
+def test_send_message_to_followers(session: Page):
+    followers = pd.read_csv('followers.csv')['username']
+
+    def send_message(session: Page, recipient_username: str) -> None:
+        session.goto("https://www.instagram.com/direct/inbox/")
+
+        session = create_conversation_via_ui(session, recipient_username)
+        
+        time.sleep(randint(1, 5))
+        
+        session = write_message_to_textarea_via_ui(session, message_to_send=f"hey baby {randint(1, 1000)}")
+
+        time.sleep(randint(1, 5))
+
+        session = send_message_via_ui(session)
+
+        time.sleep(randint(20, 30))
+    
+    followers.apply(
+        lambda x: send_message(session, x)
+    )

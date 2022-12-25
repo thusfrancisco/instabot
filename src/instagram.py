@@ -200,3 +200,89 @@ def follow_unfollow_via_api(page: Page, request_variables: dict, target_user_id:
         return response.json()
     else:
         return response.status_code
+
+
+def create_conversation_via_api(page: Page, request_variables: dict, list_of_recipient_user_ids: list) -> str:
+    """
+    NOT WORKING!
+    """
+    request_headers = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'content-type': 'application/x-www-form-urlencoded',
+        'referer': 'https://www.instagram.com/direct/new/',
+        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),  # Whereas the other request variables remain unchanged between sessions, the csrftoken must be updated.
+        'x-asbd-id': request_variables['x-asbd-id'],
+        'x-ig-app-id': request_variables['x-ig-app-id'],
+        'x-ig-www-claim': request_variables['x-ig-www-claim'],
+        'x-instagram-ajax': request_variables['x-instagram-ajax'],
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    response = requests.post(
+        f'https://i.instagram.com/api/v1/direct_v2/create_group_thread/',
+        headers=request_headers,
+        data=json.dumps({'recipient_users': list_of_recipient_user_ids}),
+        cookies=get_all_cookies(page)
+    )
+    print(f"Response {response} for users {list_of_recipient_user_ids}")
+    print(response.json())
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return response.status_code
+
+
+def create_conversation_via_ui(page: Page, recipient_username: str) -> Page:
+    """
+    Create a conversation using the UI, provided the recipient_username.
+    The session is assumed to already be at the "https://www.instagram.com/direct/inbox/" URL before it enters the function.
+    """
+    button_new_message = page.locator('button>div>svg[aria-label="New message"]')
+    button_new_message.click()
+
+    input_recipient_username = page.type('input[name="queryBox"]', recipient_username, delay=100)
+
+    div_recipient_user = page.locator(f'div>div>div>div>div>div:text("{recipient_username}")')
+    div_recipient_user.click()
+
+    button_next = page.locator('button>div:text("Next")')
+    button_next.click()
+
+    return page
+
+
+def paste_from_clipboard_to_textarea_via_ui(page: Page) -> Page:
+    """
+    Pastes content from the clipboard into the messaging textarea.
+    Assumes the correct textarea is available.
+    """
+    
+    message_textarea = page.locator('textarea[placeholder="Message..."]')
+    message_textarea.click()
+
+    page.keyboard.press('Control+V')
+
+    return page
+
+
+def send_message_via_ui(page: Page) -> Page:
+    """
+    Assumes a "Send" button is visible and enabled (message content exists).
+    """
+
+    button_send = page.locator('button:text("Send")')
+    button_send.click()
+
+    return page
+
+
+def write_message_to_textarea_via_ui(page: Page, message_to_send: str) -> Page:
+    """
+    Assumes the correct textarea is available.
+    """
+    message_textarea = page.locator('textarea[placeholder="Message..."]')
+    message_textarea.type(message_to_send, delay=100)
+
+    return page
