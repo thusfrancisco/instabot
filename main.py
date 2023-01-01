@@ -12,6 +12,7 @@ from src.supabase import new_client, n_days_ago_datetime_as_str
 from supabase import Client
 from postgrest.exceptions import APIError
 import numpy as np
+import traceback
 
 
 MAX_POTENCY_RATIO = 1
@@ -33,7 +34,7 @@ def session(page: Page, username: str, password: str) -> Page:
     return login_to_instagram(page, username, password)
 
 
-def test_unfollow_nonfollowers(session: Page, request_vars: dict):
+def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bool = False):
     
     current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
 
@@ -45,23 +46,20 @@ def test_unfollow_nonfollowers(session: Page, request_vars: dict):
         print('Saving all following to csv...')
         following.to_csv('following.csv', index=False)
     
-    # Filter out followers
-    nonfollowers = following.loc[~following['follows_viewer']]
-    nonfollowers.to_csv('nonfollowers.csv', index=False)
+    if only_nonfollowers:
+        # Filter out followers
+        filtered_following = following.loc[~following['follows_viewer']]
+        filtered_following.to_csv('nonfollowers.csv', index=False)
 
     # Get previous_follows who were followed at least one week ago
     supabase = new_client()
-    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=7)).limit(10000).execute().data)
-    follows_from_at_least_one_week_ago.to_csv('follows_from_at_least_one_week_ago.csv', index=False)  
+    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=15)).limit(10000).execute().data)
+    follows_from_at_least_one_week_ago.to_csv('follows_from_at_least_one_week_ago.csv', index=False)
 
-    # Cross nonfollowers with previous_follows from at least one week ago, and remove exceptions (present in the exceptions list)
-    list_unfollow_exceptions = [
-        55874960373,  # TakesTwoDuo
-        2910299261,  # nome.proprio
-        45646591947  # uterus.of.lilith
-    ]
-    users_to_unfollow = nonfollowers.loc[
-        (nonfollowers['id'].isin(follows_from_at_least_one_week_ago['id'])) & (~nonfollowers['id'].isin(list_unfollow_exceptions))
+    # Cross filtered_following with previous_follows from at least one week ago, and remove exceptions (present in the exceptions list)
+    unfollow_exceptions = pd.read_csv('unfollow_exceptions.csv')
+    users_to_unfollow = filtered_following.loc[
+        (filtered_following['id'].isin(follows_from_at_least_one_week_ago['id'])) & (~filtered_following['id'].isin(unfollow_exceptions['id']))
     ]
     users_to_unfollow.to_csv('users_to_unfollow.csv', index=False)
 
@@ -89,7 +87,7 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
     
     current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
 
-    likers_filename = f'likers_{target_post_shortcode}.csv'
+    likers_filename = f'./likers/likers_{target_post_shortcode}.csv'
 
     # Get all followers of target_post
     if os.path.isfile(likers_filename):
@@ -204,17 +202,28 @@ def test_send_message_to_followers(session: Page):
     followers = pd.read_csv('followers.csv')['username']
 
     def send_message(session: Page, recipient_username: str) -> None:
-        session.goto("https://www.instagram.com/direct/inbox/")
+        sent_flag = False
+        while not sent_flag:
+            try:
+                session.goto("https://www.instagram.com/direct/inbox/")
 
-        session = create_conversation_via_ui(session, recipient_username)
-        
-        time.sleep(randint(1, 5))
-        
-        session = write_message_to_textarea_via_ui(session, message_to_send=f"hey baby {randint(1, 1000)}")
+                time.sleep(randint(1, 5))
+                session = create_conversation_via_ui(session, recipient_username)
+                
+                time.sleep(randint(1, 5))
+                session = write_message_to_textarea_via_ui(session, message_to_send=f"hey baby {randint(1, 1000)}")
 
-        time.sleep(randint(1, 5))
+                time.sleep(randint(1, 5))
+                session = send_message_via_ui(session)
 
-        session = send_message_via_ui(session)
+                print(f"Sent message to {recipient_username}")
+                sent_flag = True
+            except TimeoutError:
+                pass
+            except Exception as error:
+                traceback.print_exc()
+                if "strict mode violation" in traceback.format_exc():
+                    sent_flag = True
 
         time.sleep(randint(20, 30))
     
