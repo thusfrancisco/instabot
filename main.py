@@ -50,6 +50,8 @@ def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bo
         # Filter out followers
         filtered_following = following.loc[~following['follows_viewer']]
         filtered_following.to_csv('nonfollowers.csv', index=False)
+    else:
+        filtered_following = following
 
     # Get previous_follows who were followed at least one week ago
     supabase = new_client()
