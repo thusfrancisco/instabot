@@ -1,7 +1,7 @@
 from playwright.sync_api import Page, expect
 import re
 import pandas as pd
-from src.instagram import login_to_instagram, create_conversation_via_ui, paste_from_clipboard_to_textarea_via_ui, write_message_to_textarea_via_ui, send_message_via_ui
+from src.instagram import login_to_instagram, create_conversation_via_ui, follow_unfollow_via_ui, paste_from_clipboard_to_textarea_via_ui, send_message_via_ui, write_message_to_textarea_via_ui
 from src.instagram import get_value_from_cookies_by_key, get_all_cookies
 from src.instagram import GRAPHQL_QUERY, query_graphql_next_page, get_following_count, get_follower_count, get_all_following, get_all_followers
 from src.instagram import follow_unfollow_via_api, create_conversation_via_api
@@ -178,6 +178,22 @@ def test_create_conversation_via_ui(page: Page, username: str, password: str):
     page = create_conversation_via_ui(page, recipient_username)
 
     expect(page.locator(f'img[alt="{recipient_username}\'s profile picture"]')).to_have_count(2)
+
+
+def test_follow_via_ui(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+
+    assert follow_unfollow_via_ui(page, target_username='therock', follow=True) == 'therock'
+
+
+def test_unfollow_via_ui(page: Page, username: str, password: str):
+    page.goto("https://www.instagram.com/")
+
+    page = login_to_instagram(page, username, password)
+
+    assert follow_unfollow_via_ui(page, target_username='therock', follow=False) == 'therock'
 
 
 def test_paste_from_clipboard_and_send_message_via_ui(page: Page, username: str, password: str):

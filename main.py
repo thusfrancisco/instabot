@@ -4,14 +4,14 @@ import time
 from random import randint
 from src.instagram import get_all_followers, login_to_instagram, get_value_from_cookies_by_key
 from src.instagram import get_following_count, get_follower_count, get_all_following, get_all_likers
+from src.instagram import follow_unfollow
 from src.instagram import follow_unfollow_via_api
-from src.instagram import create_conversation_via_ui, paste_from_clipboard_to_textarea_via_ui, write_message_to_textarea_via_ui, send_message_via_ui
+from src.instagram import create_conversation_via_ui, follow_unfollow_via_ui, paste_from_clipboard_to_textarea_via_ui, write_message_to_textarea_via_ui, send_message_via_ui
 import pandas as pd
 import os
 from src.supabase import new_client, n_days_ago_datetime_as_str
 from supabase import Client
 from postgrest.exceptions import APIError
-import numpy as np
 import traceback
 
 
@@ -20,21 +20,16 @@ MAX_POTENCY_RATIO = 1
 potency_ratio with POSITIVE values can be used to route interactions to only potential (real) users WHOSE followers count is higher than following count (e.g., potency_ratio = 1.39) find desired potency_ratio with this formula: potency_ratio == followers count / following count (use desired counts)
 potency_ratio with NEGATIVE values can be used to route interactions to only massive followers WHOSE following count is higher than followers count (e.g., potency_ratio = -1.42) find desired potency_ratio with this formula: potency_ratio == following count / followers count (use desired counts)
 """
-
-
 @pytest.fixture()
-def target_post_shortcode() -> str:
-    return os.environ.get('TARGET_POST_ID')
+def session(context_and_page: Page, flag_use_cdp_target: bool, flag_is_already_logged_in: bool, username: str, password: str) -> Page: 
+    if flag_use_cdp_target and flag_is_already_logged_in:  # If using existing browser context, instagram is expected to be logged in
+        return context_and_page
+
+    context_and_page.goto("https://www.instagram.com/")
+    return login_to_instagram(context_and_page, username, password)
 
 
-@pytest.fixture()
-def session(page: Page, username: str, password: str) -> Page:
-    page.goto("https://www.instagram.com/")
-
-    return login_to_instagram(page, username, password)
-
-
-def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bool = False):
+def test_unfollow_batch(session: Page, only_nonfollowers: bool = False):
     
     current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
 
@@ -55,7 +50,7 @@ def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bo
 
     # Get previous_follows who were followed at least one week ago
     supabase = new_client()
-    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=15)).limit(10000).execute().data)
+    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=20)).limit(10000).execute().data)
     follows_from_at_least_one_week_ago.to_csv('follows_from_at_least_one_week_ago.csv', index=False)
 
     # Cross filtered_following with previous_follows from at least one week ago, and remove exceptions (present in the exceptions list)
@@ -69,14 +64,14 @@ def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bo
     users_to_unfollow = users_to_unfollow.head(15)
     print(f"A total of {len(users_to_unfollow)} users will be unfollowed.")
     
-    def sleep_then_unfollow(session: Page, request_vars: dict, target_user_id: int) -> str:
-        time.sleep(randint(20, 30))
+    def sleep_then_unfollow(session: Page, target_username: str) -> str:
+        time.sleep(randint(30, 40))  # Increase sleep time to 30-40s if using API. => Seems to be independent of the method. UI-based unfollowing also results in a temporary restriction.
         
-        return follow_unfollow_via_api(session, request_vars, target_user_id, follow=False)
+        return follow_unfollow(session, target_username, False)
 
     # Execute unfollows and save to csv
     users_to_unfollow['request_response'] = users_to_unfollow.apply(
-        lambda x: sleep_then_unfollow(session, request_vars, x['id']), axis=1
+        lambda x: sleep_then_unfollow(session, x['username']), axis=1
     )
 
     # Update following csv
@@ -84,7 +79,7 @@ def test_unfollow_batch(session: Page, request_vars: dict, only_nonfollowers: bo
     new_following.to_csv('following.csv', index=False)
 
 
-def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode: str):
+def test_follow_likers(session: Page, target_post_shortcode: str):
     print(f"Going to follow all likers of post with ID: {target_post_shortcode}")
     
     current_user_id = get_value_from_cookies_by_key(session, key='ds_user_id')
@@ -103,7 +98,7 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
     Create function for determining whether or not to follow the target post's liker.
     If eligible, follow the liker and write a record to the database.
     """
-    def follow_liker_and_write_record(liker_id: int, full_name: str, maximum_potency_ratio: float, is_private: bool, is_verified: bool, previous_follows_ids: pd.Series, supabase_client: Client) -> dict:
+    def follow_liker_and_write_record(liker_id: int, liker_username: str, full_name: str, maximum_potency_ratio: float, is_private: bool, is_verified: bool, previous_follows_ids: pd.Series, supabase_client: Client) -> dict:
         time.sleep(randint(10, 15))
 
         following_count = get_following_count(session, liker_id)
@@ -136,7 +131,7 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
                     print(previous_follows_ids.isin([liker_id]).any())
                 
                 time.sleep(randint(10, 15))
-                return follow_unfollow_via_api(session, request_vars, liker_id, follow=True)
+                return follow_unfollow(session, liker_username, True)
 
     # Only follow private accounts
     private_likers_of_target_post = all_likers_of_target_post.loc[all_likers_of_target_post['is_private'] == False]
@@ -148,12 +143,12 @@ def test_follow_likers(session: Page, request_vars: dict, target_post_shortcode:
 
     private_likers_of_target_post['request_response'] = private_likers_of_target_post.apply(
         lambda x: follow_liker_and_write_record(
-            x['id'], x['full_name'], MAX_POTENCY_RATIO, x['is_private'], x['is_verified'], previous_follows, supabase
+            x['id'], x['username'], x['full_name'], MAX_POTENCY_RATIO, x['is_private'], x['is_verified'], previous_follows, supabase
         ) if not x['followed_by_viewer'] else 'ALREADY_FOLLOWED',
         axis=1
     )
 
-    private_likers_of_target_post.to_csv(f"public_{likers_filename}", index=False)
+    private_likers_of_target_post.to_csv(f"./likers/public_{target_post_shortcode}.csv", index=False)
 
 
 def test_update_followers(session: Page):

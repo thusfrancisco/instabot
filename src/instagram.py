@@ -176,30 +176,10 @@ def get_all_likers(page: Page, shortcode: str) -> pd.DataFrame:
     return pd.DataFrame([edge['node'] for page in all_pages for edge in page['data'][GRAPHQL_KEYS[query_type][0]][GRAPHQL_KEYS[query_type][1]]['edges']])
 
 
-def follow_unfollow_via_api(page: Page, request_variables: dict, target_user_id: int, follow: bool = True) -> str:
-    request_headers = {
-        'accept': '*/*',
-        'accept-language': 'en-US;q=0.9,en;q=0.8',
-        'content-type': 'application/x-www-form-urlencoded',
-        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),  # Whereas the other request variables remain unchanged between sessions, the csrftoken must be updated.
-        'x-asbd-id': request_variables['x-asbd-id'],
-        'x-ig-app-id': request_variables['x-ig-app-id'],
-        'x-ig-www-claim': request_variables['x-ig-www-claim'],
-        'x-instagram-ajax': request_variables['x-instagram-ajax'],
-        'x-requested-with': 'XMLHttpRequest'
-    }
-    
-    response = requests.post(
-        f'https://i.instagram.com/api/v1/web/friendships/{str(target_user_id)}/{"follow" if follow else "unfollow"}/',
-        headers=request_headers,
-        cookies=get_all_cookies(page)
-    )
-    print(f"Response {response} for user ID {str(target_user_id)}")
-    
-    if response.status_code == 200:
-        return response.json()
-    else:
-        return response.status_code
+def follow_unfollow(*args, use_api: bool = False):
+    if use_api:
+        follow_unfollow_via_api(*args)
+    return follow_unfollow_via_ui(*args)
 
 
 def create_conversation_via_api(page: Page, request_variables: dict, list_of_recipient_user_ids: list) -> str:
@@ -234,6 +214,32 @@ def create_conversation_via_api(page: Page, request_variables: dict, list_of_rec
         return response.status_code
 
 
+def follow_unfollow_via_api(page: Page, request_variables: dict, target_user_id: int, follow: bool = True) -> str:
+    request_headers = {
+        'accept': '*/*',
+        'accept-language': 'en-US;q=0.9,en;q=0.8',
+        'content-type': 'application/x-www-form-urlencoded',
+        'x-csrftoken': get_value_from_cookies_by_key(page, key='csrftoken'),  # Whereas the other request variables remain unchanged between sessions, the csrftoken must be updated.
+        'x-asbd-id': request_variables['x-asbd-id'],
+        'x-ig-app-id': request_variables['x-ig-app-id'],
+        'x-ig-www-claim': request_variables['x-ig-www-claim'],
+        'x-instagram-ajax': request_variables['x-instagram-ajax'],
+        'x-requested-with': 'XMLHttpRequest'
+    }
+    
+    response = requests.post(
+        f'https://i.instagram.com/api/v1/web/friendships/{str(target_user_id)}/{"follow" if follow else "unfollow"}/',
+        headers=request_headers,
+        cookies=get_all_cookies(page)
+    )
+    print(f"Response {response} for user ID {str(target_user_id)}")
+    
+    if response.status_code == 200:
+        return response.json()
+    else:
+        return response.status_code
+
+
 def create_conversation_via_ui(page: Page, recipient_username: str) -> Page:
     """
     Create a conversation using the UI, provided the recipient_username.
@@ -251,6 +257,23 @@ def create_conversation_via_ui(page: Page, recipient_username: str) -> Page:
     button_next.click()
 
     return page
+
+
+def follow_unfollow_via_ui(page: Page, target_username: str, follow: bool = True) -> str:
+    page.goto(f"https://www.instagram.com/{target_username}/")
+    time.sleep(randint(1, 2))
+
+    button_follow_unfollow = page.locator(f'section>div>div>div>div>button>div>div:text(\"{"Follow" if follow else "Following"}\")')
+    button_follow_unfollow.click()
+
+    if not follow:
+        time.sleep(randint(1, 2))
+        button_unfollow_from_dropdown = page.locator(f'div>div>div:text("Unfollow")')
+        button_unfollow_from_dropdown.click()
+
+    print(f"{'Follow' if follow else 'Unfollow'}ed user {target_username} successfully.")
+    
+    return target_username
 
 
 def paste_from_clipboard_to_textarea_via_ui(page: Page) -> Page:

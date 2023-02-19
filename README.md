@@ -36,3 +36,13 @@ Once these steps have been completed, you can execute any of the functions in th
     pytest --headed main.py -k 'test_name' -s
 
 Where the ``--headed`` option forces Playwright to not use a headless browser (which Instagram does not accept), the ``-k`` option allows you to specify the test to run, and ``-s`` forces pytest to print everything to the terminal.
+
+# Running in Existing Browser Window
+
+⚠ This only applies to Chrome-based browsers.
+
+The easiest way to run Playwright on an existing browser window with its associated context, is to enable the browser's remote debugging mode and set a port to be used by Playwright.
+
+On Windows, add the following option to the executable's target (in Properties): 
+
+    --remote-debugging-port=9222
