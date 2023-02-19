@@ -26,6 +26,11 @@ def target_post_shortcode() -> str:
 
 
 @pytest.fixture()
+def user_ip_address() -> str:
+    return os.environ.get('USER_IP_ADDRESS')
+
+
+@pytest.fixture()
 def cdp_port() -> str:
     return os.environ.get('CDP_PORT')
 
@@ -41,12 +46,12 @@ def flag_is_already_logged_in() -> bool:
 
 
 @pytest.fixture()
-def context_and_page(flag_use_cdp_target: bool, cdp_port: str) -> Page:
+def context_and_page(flag_use_cdp_target: bool, user_ip_address: str, cdp_port: str) -> Page:
     with sync_playwright() as playwright:
         if flag_use_cdp_target:
             print(f"Connecting to existing browser via port {cdp_port}")
 
-            browser = playwright.chromium.connect_over_cdp(f"http://localhost:{cdp_port}")
+            browser = playwright.chromium.connect_over_cdp(f"http://{user_ip_address}:{cdp_port}")
             existing_context = browser.contexts[0]
             
             print(f"Current pages open:")

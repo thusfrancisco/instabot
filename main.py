@@ -1,4 +1,5 @@
 import pytest
+from tests.conftest import *
 from playwright.sync_api import Page
 import time
 from random import randint

@@ -31,6 +31,13 @@ docker run --name instagres -e POSTGRES_PASSWORD=XkPgRFJdo4A2rK5Y -e POSTGRES_US
 docker run --name pgadmin -p 8000:8000 -e 'PGADMIN_DEFAULT_EMAIL=franciscoabsampaio@protonmail.com' -e 'PGADMIN_DEFAULT_PASSWORD=rr3FJso6XFgzQdNcxjKi'-d dpage/pgadmin4
 """
 
+
+def test_connect():
+    supabase = new_client()
+
+    assert supabase
+
+
 def test_select_all_previous_follows():
     supabase = new_client()
     
