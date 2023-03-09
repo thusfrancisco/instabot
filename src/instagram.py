@@ -1,4 +1,3 @@
-from numpy import short
 from playwright.sync_api import Page
 import time
 from random import randint

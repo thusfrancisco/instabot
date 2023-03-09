@@ -2,6 +2,7 @@ from playwright.sync_api import sync_playwright, Page
 import pytest
 import os
 import time
+from src.instagram import login_to_instagram
 
 
 @pytest.fixture(autouse=False)
@@ -92,6 +93,15 @@ def context_and_page(flag_use_cdp_target: bool, user_ip_address: str, cdp_port: 
             
             yield page
             browser.close()
+
+
+@pytest.fixture()
+def session(context_and_page: Page, flag_use_cdp_target: bool, flag_is_already_logged_in: bool, username: str, password: str) -> Page: 
+    if flag_use_cdp_target and flag_is_already_logged_in:  # If using existing browser context, instagram is expected to be logged in
+        return context_and_page
+
+    context_and_page.goto("https://www.instagram.com/")
+    return login_to_instagram(context_and_page, username, password)
 
 
 @pytest.fixture()
