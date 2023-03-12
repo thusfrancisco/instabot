@@ -51,7 +51,7 @@ def test_unfollow_batch(session: Page, only_nonfollowers: bool = False):
 
     # Get previous_follows who were followed at least one week ago
     supabase = new_client()
-    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=20)).limit(10000).execute().data)
+    follows_from_at_least_one_week_ago = pd.DataFrame(supabase.table('follows').select('id', 'created_at').lte('created_at', n_days_ago_datetime_as_str(n_days=30)).limit(10000).execute().data)
     follows_from_at_least_one_week_ago.to_csv('follows_from_at_least_one_week_ago.csv', index=False)
 
     # Cross filtered_following with previous_follows from at least one week ago, and remove exceptions (present in the exceptions list)
