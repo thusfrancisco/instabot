@@ -1,5 +1,4 @@
-import pytest
-from tests.conftest import *
+from test.conftest import *
 from playwright.sync_api import Page
 import time
 from random import randint
@@ -21,13 +20,6 @@ MAX_POTENCY_RATIO = 1
 potency_ratio with POSITIVE values can be used to route interactions to only potential (real) users WHOSE followers count is higher than following count (e.g., potency_ratio = 1.39) find desired potency_ratio with this formula: potency_ratio == followers count / following count (use desired counts)
 potency_ratio with NEGATIVE values can be used to route interactions to only massive followers WHOSE following count is higher than followers count (e.g., potency_ratio = -1.42) find desired potency_ratio with this formula: potency_ratio == following count / followers count (use desired counts)
 """
-@pytest.fixture()
-def session(context_and_page: Page, flag_use_cdp_target: bool, flag_is_already_logged_in: bool, username: str, password: str) -> Page: 
-    if flag_use_cdp_target and flag_is_already_logged_in:  # If using existing browser context, instagram is expected to be logged in
-        return context_and_page
-
-    context_and_page.goto("https://www.instagram.com/")
-    return login_to_instagram(context_and_page, username, password)
 
 
 def test_unfollow_batch(session: Page, only_nonfollowers: bool = False):
