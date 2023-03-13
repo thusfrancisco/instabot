@@ -262,12 +262,12 @@ def follow_unfollow_via_ui(page: Page, target_username: str, follow: bool = True
     page.goto(f"https://www.instagram.com/{target_username}/")
     time.sleep(randint(1, 2))
 
-    button_follow_unfollow = page.locator(f'section>div>div>div>div>button>div>div:text(\"{"Follow" if follow else "Following"}\")')
+    button_follow_unfollow = page.locator(f'section>div>div>div>button>div>div:text(\"{"Follow" if follow else "Following"}\")')
     button_follow_unfollow.click()
 
     if not follow:
         time.sleep(randint(1, 2))
-        button_unfollow_from_dropdown = page.locator(f'div>div>div:text("Unfollow")')
+        button_unfollow_from_dropdown = page.locator(f'div>div>div>span:text("Unfollow")')
         button_unfollow_from_dropdown.click()
 
     print(f"{'Follow' if follow else 'Unfollow'}ed user {target_username} successfully.")
